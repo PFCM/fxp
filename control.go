@@ -42,3 +42,23 @@ func Every(val fix.S17, dur time.Duration, samplerate float32) Ticker {
 	period := int(float64(samplerate) * dur.Seconds())
 	return Tick(val, period)
 }
+
+// Once creates a ticker that outputs a value once, in the first sample it
+// produces and produces entirely zeros after that.
+func Once(val fix.S17) Ticker {
+	done := false
+	return tickFn{
+		name:    "Once",
+		inputs:  0,
+		outputs: 1,
+		tick: func(_, outputs [][]fix.S17) {
+			for i := range outputs[0] {
+				outputs[0][i] = 0
+			}
+			if !done {
+				outputs[0][1] = val
+				done = true
+			}
+		},
+	}
+}

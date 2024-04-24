@@ -5,74 +5,59 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/pfcm/fxp"
 	"github.com/pfcm/fxp/fix"
+	"github.com/pfcm/fxp/internal/buffer"
 )
 
-// ring is an interpolating ring buffer.
-// TODO: figure out an api for a multi-tap
-type ring struct {
-	buf    []fix.S17
-	writep int
-	readp  int
-}
-
-// newRing allocates a new ring buffer with the given number of samples. The
-// write head and the read head start off in the same position to provide
-// maximum delay; so be sure to read before writing. Or move the heads around,
-// I'm not your mum.
-func newRing(size int) *ring {
-	return &ring{
-		buf: make([]fix.S17, size),
-	}
-}
-
-// write writes a chunk of samples to the buffer at the current position of the
-// write head. Updates the write head.
-func (r *ring) write(in []fix.S17) {
-	if len(in) > len(r.buf) {
-		panic(fmt.Errorf("input %d larger than buffer %d", len(in), len(r.buf)))
-	}
-	copied := copy(r.buf[r.writep:], in)
-	if copied < len(in) {
-		// we couldn't fit it all on the end.
-		r.writep = copy(r.buf, in[copied:])
-	} else {
-		r.writep += copied
-	}
-}
-
-// read reads a chunk of samples from the buffer at the current read
-// head. Advances the read head.
-func (r *ring) read(out []fix.S17) {
-	if len(out) > len(r.buf) {
-		panic(fmt.Errorf("output %d larger than buffer %d", len(out), len(r.buf)))
-	}
-	copied := copy(out, r.buf[r.readp:])
-	if copied < len(out) {
-		// reached the end of the buffer, wrap
-		r.readp = copy(out[copied:], r.buf)
-	} else {
-		r.readp += copied
-	}
-}
-
 // Delay is an fxp.Ticker that provides a simple tape-style delay.
-// TODO: input parameters.
-// TODO: external feedback
+// Feedback is controlled by another ticker, that needs to have two inputs
+// and one output.
+// The inputs are:
+//   - 0: the input audio, S17
+//   - 1: the rate at which we read to and write from the delay line,
+//     reinterpreted as a Rat44.
+//
+// TODO: multi tap
 type Delay struct {
-	rb *ring
+	rb   *buffer.Ring
+	Rate float32
+	fb   fxp.Ticker
+	fbuf []fix.S17
 }
 
-func NewDelay(maxTime time.Duration, samplerate float32) *Delay {
+func NewDelay(maxTime time.Duration, samplerate float32, fb fxp.Ticker) *Delay {
+	if fb != nil && (fb.Inputs() != 2 || fb.Outputs() != 1) {
+		panic(fmt.Errorf("%v: wrong inputs/outputs for delay feedback", fb))
+	}
 	samps := int(maxTime.Seconds() * float64(samplerate))
-	return &Delay{rb: newRing(samps)}
+	rb := buffer.NewRing(2 * samps)
+	rb.Writep = float32(samps)
+	return &Delay{
+		rb:   rb,
+		Rate: 1.0,
+		fb:   fb,
+		fbuf: make([]fix.S17, 4096),
+	}
 }
 
-func (*Delay) Inputs() int      { return 1 }
+func (*Delay) Inputs() int      { return 2 }
 func (*Delay) Outputs() int     { return 1 }
-func (d *Delay) String() string { return fmt.Sprintf("Delay(%d)", len(d.rb.buf)) }
+func (d *Delay) String() string { return fmt.Sprintf("Delay(%d)", len(d.rb.Buf)) }
 
 func (d *Delay) Tick(in, out [][]fix.S17) {
-	d.rb.read(out[0])
-	d.rb.write(in[0])
+	// for _, s := range in[1] {
+	// 	fmt.Printf("%v ", fix.InterpretAsRat44(s))
+	// }
+	// fmt.Println()
+	d.rb.Read(out[0], in[1])
+	if len(d.fbuf) != len(out[0]) {
+		d.fbuf = d.fbuf[:len(out[0])]
+	}
+	toWrite := in[0]
+	if d.fb != nil {
+		d.fb.Tick([][]fix.S17{in[0], out[0]}, [][]fix.S17{d.fbuf})
+		toWrite = d.fbuf
+	}
+	d.rb.Write(toWrite, in[1])
 }

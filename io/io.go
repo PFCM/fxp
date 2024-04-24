@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"time"
 
 	"github.com/gen2brain/malgo"
+	"github.com/pfcm/audiofile/wav"
 
 	"github.com/pfcm/fxp"
 	"github.com/pfcm/fxp/fix"
@@ -46,6 +48,20 @@ func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
 		outputs[i] = make([]fix.S17, 4096)
 	}
 
+	f, err := os.Create(fmt.Sprintf("out-%d.wav", time.Now().Unix()))
+	if err != nil {
+		return err
+	}
+	w, err := wav.NewWriter(f, wav.FileFormat{
+		Format:     wav.IEEEFloat,
+		BitDepth:   32,
+		Channels:   t.Outputs(),
+		SampleRate: 44100,
+	})
+	if err != nil {
+		return err
+	}
+
 	recv := func(out, in []byte, framecount uint32) {
 		if framecount == 0 {
 			return
@@ -80,6 +96,9 @@ func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
 				o = binary.LittleEndian.AppendUint32(o, math.Float32bits(f))
 			}
 		}
+		if _, err := w.Write(out); err != nil {
+			panic(err)
+		}
 	}
 
 	device, err := malgo.InitDevice(mctx.Context, cfg, malgo.DeviceCallbacks{
@@ -95,5 +114,6 @@ func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
 	<-ctx.Done()
 
 	device.Uninit()
-	return nil
+
+	return w.Close()
 }

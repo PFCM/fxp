@@ -80,3 +80,36 @@ func TestS17Float32RoundTrip(t *testing.T) {
 		}
 	}
 }
+
+func TestSMulU17S17S17(t *testing.T) {
+	for i := int(MinU17); i <= int(MaxU17); i++ {
+		u := U17(i)
+		uf := U17ToFloat[float32](u)
+		for j := int(MinS17); j <= int(MaxS17); j++ {
+			s := S17(j)
+			sf := Float[float32](s)
+			got := SMulU17S17S17(u, s)
+			want := sf * uf
+			if want < -1 {
+				want = -1
+			}
+			if mf := Float[float32](MaxS17); want > mf {
+				want = mf
+			}
+			if w := FromFloat(want); got != w {
+				t.Errorf("%v*%v=%v (err %v), %v*%v=%v (err %v)",
+					u, s, got,
+					Float[float32](got)-want,
+					uf, sf, w,
+					Float[float32](w)-want)
+			}
+		}
+	}
+}
+
+// func TestRat44(t *testing.T) {
+// 	for i := float32(0.05); i < 20; i *= 1.1 {
+// 		r := FloatToRat44(i)
+// 		t.Errorf("%f: %02x: %f", i, r, Rat44ToFloat[float32](r))
+// 	}
+// }

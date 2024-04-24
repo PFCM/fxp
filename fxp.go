@@ -126,13 +126,21 @@ func (c Chain) String() string { return fmt.Sprintf("Chain(%v)", c.ts) }
 
 func (c Chain) Tick(input, output [][]fix.S17) {
 	// TODO: we could certainly skip some copies, but also that gets messy.
+	var bufsize int
+	if len(input) > 0 {
+		bufsize = len(input[0])
+	} else {
+		bufsize = len(output[0])
+	}
+	for i := range c.b1 {
+		c.b1[i] = c.b1[i][:bufsize]
+		c.b2[i] = c.b2[i][:bufsize]
+	}
 	in, out := c.b1, c.b2
 	for i := range input {
 		copy(in[i], input[i])
-		in[i] = in[i][:len(input[i])]
 	}
 	for i := range output {
-		out[i] = out[i][:len(output[i])]
 		for j := range out[i] {
 			out[i][j] = 0
 		}
@@ -143,41 +151,8 @@ func (c Chain) Tick(input, output [][]fix.S17) {
 		t.Tick(in, out)
 		in, out = out, in
 	}
-	for i := range out {
+	for i := range in {
 		copy(output[i], in[i])
-	}
-}
-
-// Mixer mixes together a number of inputs, first applying the provided gains.
-type Mixer struct {
-	Gains []fix.S17
-}
-
-var _ Ticker = Mixer{}
-
-// Sum returns a ticker that sums the given number of inputs down to one,
-// reducing their gains to try and keep a roughly constant power.
-func Sum(n int) Mixer {
-	var (
-		g  = fix.FromFloat(math.Sqrt(float64(n)))
-		gs = make([]fix.S17, n)
-	)
-	for i := range gs {
-		gs[i] = g
-	}
-	return Mixer{Gains: gs}
-}
-
-func (m Mixer) Inputs() int    { return len(m.Gains) }
-func (m Mixer) Outputs() int   { return 1 }
-func (m Mixer) String() string { return "Mixer" }
-
-func (m Mixer) Tick(input, output [][]fix.S17) {
-	for i := range input[0] {
-		for j, g := range m.Gains {
-			a := input[j][i].SMul(g)
-			output[0][i] = output[0][i].SAdd(a)
-		}
 	}
 }
 
@@ -266,4 +241,96 @@ func (n Noop) Tick(inputs, outputs [][]fix.S17) {
 	for i := range inputs {
 		copy(outputs[i], inputs[i])
 	}
+}
+
+// Mixer applies a mixing matrix. The number of expected inputs and outputs
+// depends on the shape of the matrix provided to NewMatMix.
+type Mixer struct {
+	// row-major (input-major?) order
+	mat             []fix.S17
+	inputs, outputs int
+}
+
+var _ Ticker = Mixer{}
+
+// NewMixer constructs a matrix-based Mixer. For each output sample the
+// operation is:
+// - stack all input channels into a column vector x with shape (inputs x 1)
+// - let M be the (outputs x inputs) mixing matrix (mat)
+// - compute the (outputs x 1) result of Mx
+//
+// len(mat) is therefore the number of output channels, and len(mat[0]) the
+// number of input channels. Always makes a copy of the provided matrix and will
+// panic if it is ragged or any of the dimensions is zero.
+//
+// Note that the layout of the input matrix makes it fairly convenient to write
+// as each individual array is a row, written sideways, that describes exactly
+// how to weight the input channels for a particular output channel. For example:
+//
+//	NewMatMix([][]fix.S17{
+//	  {1, 0, 0},
+//	  {0, 0.5, 0.5},
+//	})
+//
+// would create a mixer with 3 input channels and 2 output channels, where
+// output 0 is exactly input 0 (actually slightly attenuated because of the
+// limitations of fix.S17) and output 1 is the average of the inputs 2 and 3.
+func NewMixer(mat [][]fix.S17) Mixer {
+	outputs, inputs := len(mat), len(mat[0])
+	flat := make([]fix.S17, 0, outputs*inputs)
+	for _, row := range mat {
+		for _, v := range row {
+			flat = append(flat, v)
+		}
+	}
+	if len(flat) != outputs*inputs {
+		panic("ragged matrix")
+	}
+
+	return Mixer{mat: flat, inputs: inputs, outputs: outputs}
+}
+
+func (m Mixer) Inputs() int  { return m.inputs }
+func (m Mixer) Outputs() int { return m.outputs }
+
+func (m Mixer) String() string {
+	return fmt.Sprintf("Mixer(%dx%d, %v", m.outputs, m.inputs, m.mat)
+}
+
+func (m Mixer) Tick(inputs, outputs [][]fix.S17) {
+	// These matrices are O(channels), so probably pretty small, unlikely to
+	// need to be particularly clever.
+	for s := range outputs[0] {
+		for i := 0; i < m.outputs; i++ {
+			// i is the row number, and the output channel.
+			r := i * m.inputs // start of the row in m.mat
+			acc := fix.S17(0)
+			for j := 0; j < m.inputs; j++ {
+				// j is the offset into the row, and the
+				// corresponding input channel.
+				acc = acc.SAdd(m.mat[r+j].SMul(inputs[j][s]))
+			}
+			outputs[i][s] = acc
+		}
+	}
+}
+
+// Sum returns a ticker that sums the given number of inputs down to one,
+// reducing their gains to try and keep a roughly constant power.
+func Sum(n int) Mixer {
+	var (
+		g  = fix.FromFloat(math.Sqrt(float64(n)))
+		gs = make([]fix.S17, n)
+	)
+	for i := range gs {
+		gs[i] = g
+	}
+	return NewMixer([][]fix.S17{gs})
+}
+
+// Mix returns a Mixer that sums all its inputs to a singler channel using the
+// provided weights. It is a special case of NewMixer, for the case of a single
+// output channel.
+func Mix(gains []fix.S17) Mixer {
+	return NewMixer([][]fix.S17{gains})
 }
