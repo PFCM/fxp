@@ -24,46 +24,28 @@ func main() {
 	log.SetPrefix("gen-fix: ")
 
 	if *genOpsFlag {
-		if err := genOps(*dirFlag); err != nil {
+		if err := genOps(); err != nil {
 			log.Fatal(err)
 		}
 	}
 
 	if *genTypesFlag {
-		if err := genTypes(*dirFlag); err != nil {
+		if err := genTypes(); err != nil {
 			log.Fatal(err)
 		}
 	}
 	log.Println("All done")
 }
 
-func genOps(dir string) error {
-	log.Println("Generating op benchmarks")
-
-	path := filepath.Join(dir, "sat_bench_test.go")
-	b, err := gen.GenOpsBenchmarks()
-	if err != nil {
+func genOps() error {
+	log.Println("Generating op tests/benchmarks")
+	if err := write("sat_bench_test.go", gen.GenOpsBenchmarks); err != nil {
 		return err
 	}
-	if err := os.WriteFile(path, b, 0666); err != nil {
-		return err
-	}
-	log.Printf("Wrote %s", path)
-
-	path = filepath.Join(dir, "sat_test.go")
-	b, err = gen.GenOpsTests()
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(path, b, 0666); err != nil {
-		return err
-	}
-	log.Printf("Write %s", path)
-
-	return nil
+	return write("sat_test.go", gen.GenOpsTests)
 }
 
-func genTypes(dir string) error {
+func genTypes() error {
 	type generator interface {
 		Typename() string
 		Gen() ([]byte, error)
@@ -79,27 +61,30 @@ func genTypes(dir string) error {
 
 	for _, g := range types {
 		log.Printf("Generating %v", g.Typename())
+		name := strings.ToLower(g.Typename())
 
-		prefix := filepath.Join(*dirFlag, strings.ToLower(g.Typename()))
-		path := prefix + ".go"
-		src, err := g.Gen()
-		if err != nil {
+		implName := name + ".go"
+		if err := write(implName, g.Gen); err != nil {
 			return err
 		}
-		if err := os.WriteFile(path, src, 0666); err != nil {
-			return err
-		}
-		log.Printf("Wrote %q", path)
 
-		testPath := prefix + "_test.go"
-		src, err = g.GenTest()
-		if err != nil {
+		testName := name + "_test.go"
+		if err := write(testName, g.GenTest); err != nil {
 			return err
 		}
-		if err := os.WriteFile(testPath, src, 0666); err != nil {
-			return err
-		}
-		log.Printf("Wrote %q", testPath)
 	}
+	return write("pairs.go", gen.GenPairs)
+}
+
+func write(filename string, f func() ([]byte, error)) error {
+	b, err := f()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(*dirFlag, filename)
+	if err := os.WriteFile(path, b, 0666); err != nil {
+		return err
+	}
+	log.Printf("Wrote %q", path)
 	return nil
 }

@@ -54,7 +54,7 @@ func usmulbigbranchless(a, b, f uint8) uint8 {
 
 // usmulbits is an awful implementation of usmul that does the multiplication by
 // hand to be able to pack the result into 2 uint8s instead of a uint16. It is
-// evil and excelptionally slow compared to the others.
+// evil and slow.
 func usmulbits(a, b, f uint8) uint8 {
 	const mask uint8 = 1<<4 - 1
 	// split a = (a1 * 16 + a0)
@@ -80,6 +80,12 @@ func usmulbits(a, b, f uint8) uint8 {
 	x := lo >> f // the highest 8-f, in the lowest positions.
 	x |= hi << (8 - f)
 	return x
+}
+
+// usmul2 is the same as usmul, except the two inputs need not have the same
+// scaling factor. The result will have the same scaling factor as a: af.
+func usmul2(a, af, b, bf uint8) uint8 {
+	return uint8(min(0xff, (uint16(a)*uint16(b))>>bf))
 }
 
 // usadd is an unsigned saturating add. In fixed-point arithmetic the scaling
@@ -274,4 +280,24 @@ func ssmulbigbranch(a, b int8, f uint8) int8 {
 		return -0x80
 	}
 	return int8(r)
+}
+
+// ssmul2 is the same as ssmul, except the two inputs need not have the same
+// scaling factor. The result will have the same scaling factor as a: af.
+func ssmul2(a int8, af uint8, b int8, bf uint8) int8 {
+	return int8(min(0x7f, max(-0x80, (int16(a)*int16(b))>>bf)))
+}
+
+// susmul2 is a saturating multiply between a signed and an unsigned number,
+// each of which may have different scaling factors. The result is signed and
+// has the same scaling as the first (signed) argument.
+func susmul2(a int8, af, b, bf uint8) int8 {
+	return int8(min(0x7f, max(-0x80, (int16(a)*int16(b))>>bf)))
+}
+
+// ussmul2 is a saturating multiply between an unsigned and a signed number,
+// each of which may have different scaling factors. The result is unsigned and
+// has the same scaling as the first (unsigned) argument.
+func ussmul2(a, af uint8, b int8, bf uint8) uint8 {
+	return uint8(min(0xff, max(0, (int16(a)*int16(b))>>bf)))
 }
