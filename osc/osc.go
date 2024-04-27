@@ -44,8 +44,8 @@ func (imc InputMappingConst) step(...fix.S17) float32 { return imc.s }
 
 // WaveTable is a wavetable oscillator. It receives a single input, which is the
 // note to play, and has one output, an appropriate block of samples. The note
-// wouldn't make sense in a fix.S17; it is reintepreted as a fix.U62 encoding a
-// (fractional) midi note, offset by the Lowest field (which may be negative).
+// wouldn't make sense in a fix.S17; it is reintepreted as a fix.U71 encoding a
+// midi note, offset by the Lowest field (which may be negative).
 // TODO: we may want more fractional components.
 type Table struct {
 	// TODO: should just be a buffer.Ring?
@@ -70,9 +70,9 @@ func (t *Table) Tick(in, out [][]fix.S17) {
 		} else {
 			k := int(t.phase+1) % len(t.tab)
 			c := t.phase - float32(j)
-			out[0][i] = interp.L(t.tab[j], t.tab[k], fix.FromFloat(c))
+			out[0][i] = interp.L(t.tab[j], t.tab[k], fix.S17FromFloat(c))
 		}
-		t.phase += t.step(fix.U62(step))
+		t.phase += t.step(fix.U71(step))
 		for t.phase >= float32(len(t.tab)) {
 			t.phase -= float32(len(t.tab))
 		}
@@ -85,7 +85,7 @@ func Sine(samplerate float32, lowest int) *Table {
 	table := make([]fix.S17, n)
 	for i := range table {
 		f := math.Sin(math.Pi / float64(n/2) * float64(i))
-		table[i] = fix.FromFloat(f)
+		table[i] = fix.S17FromFloat(f)
 	}
 	return &Table{
 		tab:        table,
@@ -103,7 +103,7 @@ func RatSine(samplerate float32, lowest int, exp float32) *Table {
 	for i := range table {
 		f := math.Sin(math.Pi / float64(n/2) * float64(i))
 		f = math.Pow(float64(exp), f)
-		table[i] = fix.S17(fix.FloatToRat44(f))
+		table[i] = fix.S17(fix.Rat44FromFloat(f))
 	}
 	return &Table{
 		tab:        table,
@@ -126,13 +126,13 @@ func Square(samplerate float32, high, low fix.S17, lowestNote int) *Table {
 
 // step calculates a step value to achieve the provided midi note value as closely as
 // possible.
-func (t Table) step(note fix.U62) float32 {
+func (t Table) step(note fix.U71) float32 {
 	// first turn the note into a frequency.
 	// TODO: lookup table?
-	n := float64(t.Lowest) + fix.U62ToFloat[float64](note)
+	n := float64(t.Lowest) + fix.U71ToFloat[float64](note)
 	freq := math.Pow(2.0, (n-69)/12) * 440
-	// freq is essentially in tables per second, calculate how many samples
-	// from the table we need per second.
+	// freq is in tables per second, calculate how many samples from the
+	// table we need per second.
 	tableSamplesPerSecond := float64(len(t.tab)) * freq
 	// figure out the seconds per output sample
 	secondsPerOutputSample := 1.0 / t.samplerate

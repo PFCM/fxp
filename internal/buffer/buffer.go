@@ -46,7 +46,7 @@ func (r *Ring) Write(in, rates []fix.S17) {
 	// TODO: this does not feel good.
 	for i, rate := range rates {
 		// rate = (rate << 4) | (rate >> 4)
-		step := fix.InterpretAsRat44(rate)
+		step := fix.Rat44ToFloat[float32](fix.Rat44(rate))
 		nextWritep := r.Writep + step
 		newSamples := int(nextWritep) - int(r.Writep)
 		switch newSamples {
@@ -68,7 +68,7 @@ func (r *Ring) Write(in, rates []fix.S17) {
 				c := (float32(wp) - r.Writep) / step
 				a := in[i]
 				if i > 0 {
-					a = interp.L(in[i], in[i-1], fix.FromFloat(c))
+					a = interp.L(in[i], in[i-1], fix.S17FromFloat(c))
 				}
 				r.Buf[wp%len(r.Buf)] = a
 			}
@@ -106,7 +106,7 @@ func (r *Ring) Read(out, rates []fix.S17) {
 	}
 	for i := range out {
 		out[i] = readAt(r.Buf, r.Readp)
-		r.Readp += fix.InterpretAsRat44(rates[i])
+		r.Readp += fix.Rat44ToFloat[float32](fix.Rat44(rates[i]))
 		if n := float32(len(r.Buf)); r.Readp >= n {
 			r.Readp -= n
 		}
@@ -115,7 +115,7 @@ func (r *Ring) Read(out, rates []fix.S17) {
 
 func readAt(src []fix.S17, pos float32) fix.S17 {
 	j, k := int(pos), int(pos+1)%len(src)
-	c := fix.FromFloat(pos - float32(j))
+	c := fix.S17FromFloat(pos - float32(j))
 	return interp.L(src[j%len(src)], src[k], c)
 }
 

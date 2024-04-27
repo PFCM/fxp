@@ -31,19 +31,19 @@ var (
 func s17s(fs ...float32) []fix.S17 {
 	out := make([]fix.S17, len(fs))
 	for i, f := range fs {
-		out[i] = fix.FromFloat(f)
+		out[i] = fix.S17FromFloat(f)
 	}
 	return out
 }
 
 // c makes a fix.S17 const ticker with the nearest value.
 func c(f float32) fxp.Ticker {
-	return fxp.Const{fix.FromFloat(f)}
+	return fxp.Const{fix.S17FromFloat(f)}
 }
 
-// uc makes an fix.U62 const ticker.
+// uc makes a fix.U71 const ticker.
 func uc(f float32) fxp.Ticker {
-	return fxp.Const{fix.S17(fix.U62FromFloat(f))}
+	return fxp.Const{fix.S17(fix.U71FromFloat(f))}
 }
 
 // o makes a sine wave oscillator with the provided serial chain of tickers
@@ -159,7 +159,7 @@ func midikeys(n int) fxp.Ticker {
 				env.NewADSR(
 					200*time.Millisecond,
 					200*time.Millisecond,
-					fix.FromFloat(float32(0.5)),
+					fix.S17FromFloat(float32(0.5)),
 					2000*time.Millisecond,
 					44100),
 			),

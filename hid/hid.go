@@ -15,15 +15,15 @@ import (
 var dispatcher = midi.Listen(context.TODO(), coremidi.ReceiveAll)
 
 // MidiNotes polyphonically tracks MIDI note on and off messages, providing two
-// outputs per voice: one containing the MIDI note number and the other the
-// velocity. Both are zero when the voice has no note, and multiple voices are
-// interleave.
+// outputs per voice: one containing the MIDI note number (as a fix.U71) and the
+// other the velocity (as a fix.U08). Both are zero when the voice has no note,
+// and multiple voices are interleaved.
 type MidiNotes struct {
 	voices int
 
 	mu     sync.Mutex
-	notes  []byte
-	velos  []byte
+	notes  []fix.U71
+	velos  []fix.U08
 	when   []uint64
 	events uint64
 }
@@ -31,8 +31,8 @@ type MidiNotes struct {
 func NewMidiNotes(voices int) *MidiNotes {
 	md := &MidiNotes{
 		voices: voices,
-		notes:  make([]byte, voices),
-		velos:  make([]byte, voices),
+		notes:  make([]fix.U71, voices),
+		velos:  make([]fix.U08, voices),
 		when:   make([]uint64, voices),
 	}
 
@@ -45,8 +45,6 @@ func NewMidiNotes(voices int) *MidiNotes {
 	)
 	go func() {
 		for msg := range c {
-			// TODO: not this
-			msg.Note <<= 2
 			switch msg.CV1Type {
 			case midi.CV1NoteOn:
 				md.noteOn(msg.Note, msg.Velocity)
@@ -79,16 +77,17 @@ func (m *MidiNotes) noteOn(n, v byte) {
 			i = j
 		}
 	}
-	m.notes[i] = n
-	m.velos[i] = v
+	m.notes[i] = fix.U71(n << 1)
+	m.velos[i] = fix.U08(v << 1)
 	m.when[i] = m.events
 }
 
 func (m *MidiNotes) noteOff(n byte) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	nf := fix.U71(n << 1)
 	for i, o := range m.notes {
-		if o == n {
+		if o == nf {
 			// Only set velocity to 0, keep outputting the same
 			// note.
 			m.velos[i] = 0

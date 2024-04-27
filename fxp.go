@@ -319,7 +319,7 @@ func (m Mixer) Tick(inputs, outputs [][]fix.S17) {
 // reducing their gains to try and keep a roughly constant power.
 func Sum(n int) Mixer {
 	var (
-		g  = fix.FromFloat(math.Sqrt(float64(n)))
+		g  = fix.S17FromFloat(math.Sqrt(float64(n)))
 		gs = make([]fix.S17, n)
 	)
 	for i := range gs {

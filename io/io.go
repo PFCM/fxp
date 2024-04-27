@@ -75,7 +75,7 @@ func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
 				j := i + c*4
 				u := binary.LittleEndian.Uint32(in[j:])
 				f := math.Float32frombits(u)
-				inputs[c][i/frameSize] = fix.FromFloat(f)
+				inputs[c][i/frameSize] = fix.S17FromFloat(f)
 			}
 		}
 		for i, inp := range inputs {
@@ -92,7 +92,7 @@ func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
 		o := out[:0]
 		for i := 0; i < int(framecount); i++ {
 			for c := range outputs {
-				f := fix.Float[float32](outputs[c][i])
+				f := fix.S17ToFloat[float32](outputs[c][i])
 				o = binary.LittleEndian.AppendUint32(o, math.Float32bits(f))
 			}
 		}

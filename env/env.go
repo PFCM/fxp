@@ -159,5 +159,5 @@ func (a *AD) enter(state envState) {
 // start and end.
 func pos(start, pos, end int) fix.S17 {
 	f := float32(pos-start) / float32(end-start)
-	return fix.FromFloat(f)
+	return fix.S17FromFloat(f)
 }
