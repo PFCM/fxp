@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"os"
-	"time"
 
 	"github.com/gen2brain/malgo"
 	"github.com/pfcm/audiofile/wav"
@@ -16,9 +15,11 @@ import (
 	"github.com/pfcm/fxp/fix"
 )
 
-// PlayWithDefaults uses the default input and outputs to run the provided
-// Ticker. It blocks until the provided context is cancelled.
-func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
+// PlayWithDefaults uses the default input and outputs to run the
+// provided Ticker. It blocks until the provided context is cancelled.
+// If filename is not "", the output is also written as a wav file
+// with that name.
+func PlayWithDefaults(ctx context.Context, t fxp.Ticker, filename string) error {
 	mctx, err := malgo.InitContext(nil, malgo.ContextConfig{}, func(msg string) {
 		fmt.Fprint(os.Stderr, msg)
 	})
@@ -48,18 +49,21 @@ func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
 		outputs[i] = make([]fix.S17, 4096)
 	}
 
-	f, err := os.Create(fmt.Sprintf("out-%d.wav", time.Now().Unix()))
-	if err != nil {
-		return err
-	}
-	w, err := wav.NewWriter(f, wav.FileFormat{
-		Format:     wav.IEEEFloat,
-		BitDepth:   32,
-		Channels:   t.Outputs(),
-		SampleRate: 44100,
-	})
-	if err != nil {
-		return err
+	var w *wav.Writer
+	if filename != "" {
+		f, err := os.Create(filename)
+		if err != nil {
+			return err
+		}
+		w, err = wav.NewWriter(f, wav.FileFormat{
+			Format:     wav.IEEEFloat,
+			BitDepth:   32,
+			Channels:   t.Outputs(),
+			SampleRate: 44100,
+		})
+		if err != nil {
+			return err
+		}
 	}
 
 	recv := func(out, in []byte, framecount uint32) {
@@ -96,8 +100,10 @@ func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
 				o = binary.LittleEndian.AppendUint32(o, math.Float32bits(f))
 			}
 		}
-		if _, err := w.Write(out); err != nil {
-			panic(err)
+		if w != nil {
+			if _, err := w.Write(out); err != nil {
+				panic(err)
+			}
 		}
 	}
 
@@ -115,5 +121,8 @@ func PlayWithDefaults(ctx context.Context, t fxp.Ticker) error {
 
 	device.Uninit()
 
-	return w.Close()
+	if w != nil {
+		return w.Close()
+	}
+	return nil
 }

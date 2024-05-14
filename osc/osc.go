@@ -14,25 +14,43 @@ import (
 // channels expected.
 type InputMapping interface {
 	step(...fix.S17) float32
+	inputs() int
 }
 
 // InputMappingMIDI yields oscillators with two inputs:
-//   - 0: a standard MIDI note from 0 to 127
+//   - 0: a standard MIDI note from 0 to 127, as a fix.U71
 //   - 1: fix.S17 of pitch bend. The range of the pitch bend
 //     is also set in MIDI notes but must be set at construction.
 type InputMappingMIDI struct {
-	pbRange byte
+	samplerate float32
+	bend       byte
+}
+
+// NewInputMappingMidi creates a new MIDI input mapping. The only argument apart
+// from the global sample rate is half the range of the pitch bend, in MIDI
+// notes (semitones). The actual pitch bend will be (almost) +/- the provided
+// range.
+func NewInputMappingMIDI(samplerate float32, bend byte) InputMappingMIDI {
+	return InputMappingMIDI{samplerate: samplerate, bend: bend}
 }
 
 func (imm InputMappingMIDI) step(fs ...fix.S17) float32 {
+	if len(fs) != 2 {
+		panic("wrong number of inputs for InputMappingMIDI")
+	}
+	note := fix.U71(fs[0])
+	_ = note
 	panic("unimplemented")
 }
+
+func (imm InputMappingMIDI) inputs() int { return 2 }
 
 // InputMappingLFO is specialised for more precision in lower frequencies
 // TODO what does it look like? maybe it's a float type
 type InputMappingLFO struct{}
 
 func (iml InputMappingLFO) step(...fix.S17) float32 { panic("no") }
+func (iml InputMappingLFO) inputs() int             { panic("idk") }
 
 // InputMappingConst yields oscillators with zero inputs that always play at a
 // constant frequency.
@@ -41,6 +59,7 @@ type InputMappingConst struct {
 }
 
 func (imc InputMappingConst) step(...fix.S17) float32 { return imc.s }
+func (InputMappingConst) inputs() int                 { return 0 }
 
 // WaveTable is a wavetable oscillator. It receives a single input, which is the
 // note to play, and has one output, an appropriate block of samples. The note
@@ -52,7 +71,7 @@ type Table struct {
 	tab        []fix.S17
 	phase      float32
 	samplerate float32
-	Lowest     int
+	Lowest     float32
 	nn         bool
 }
 
@@ -80,7 +99,7 @@ func (t *Table) Tick(in, out [][]fix.S17) {
 }
 
 // Sine returns a Table initialised with a sensible sine wave.
-func Sine(samplerate float32, lowest int) *Table {
+func Sine(samplerate, lowest float32) *Table {
 	const n = 128
 	table := make([]fix.S17, n)
 	for i := range table {
@@ -97,7 +116,7 @@ func Sine(samplerate float32, lowest int) *Table {
 // RatSine returns a table initialised with an exponentiated sine wave intended
 // to be interpreted as Rat44s. The result ranges between exp and 1/exp, give or
 // take precision.
-func RatSine(samplerate float32, lowest int, exp float32) *Table {
+func RatSine(samplerate, lowest, exp float32) *Table {
 	const n = 128
 	table := make([]fix.S17, n)
 	for i := range table {
@@ -113,9 +132,22 @@ func RatSine(samplerate float32, lowest int, exp float32) *Table {
 	}
 }
 
-func Square(samplerate float32, high, low fix.S17, lowestNote int) *Table {
+func Square(samplerate float32, high, low fix.S17, lowestNote float32) *Table {
 	// lol table
 	table := []fix.S17{high, low}
+	return &Table{
+		tab:        table,
+		samplerate: samplerate,
+		Lowest:     lowestNote,
+		nn:         true,
+	}
+}
+
+func Saw(samplerate, lowestNote float32) *Table {
+	table := make([]fix.S17, 0, 256)
+	for i := -128; i < 128; i++ {
+		table = append(table, fix.S17(i))
+	}
 	return &Table{
 		tab:        table,
 		samplerate: samplerate,

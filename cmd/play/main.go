@@ -18,14 +18,17 @@ import (
 	"github.com/pfcm/fxp"
 	"github.com/pfcm/fxp/delay"
 	"github.com/pfcm/fxp/env"
+	"github.com/pfcm/fxp/filter"
 	"github.com/pfcm/fxp/fix"
 	"github.com/pfcm/fxp/hid"
 	"github.com/pfcm/fxp/io"
 	"github.com/pfcm/fxp/osc"
+	"github.com/pfcm/fxp/wg"
 )
 
 var (
 	profileFlag = flag.Bool("profile", false, "whether to write pprof profiles to the current working directory")
+	writeFlag   = flag.Bool("write", false, "if true, writes the output to a wav file in the current directory")
 )
 
 func s17s(fs ...float32) []fix.S17 {
@@ -48,8 +51,18 @@ func uc(f float32) fxp.Ticker {
 
 // o makes a sine wave oscillator with the provided serial chain of tickers
 // as the frequency input.
-func o(min int, inps ...fxp.Ticker) fxp.Ticker {
-	os := osc.Square(44100, -128, 127, min)
+func o(min float32, inps ...fxp.Ticker) fxp.Ticker {
+	// os := osc.Square(44100, -128, 127, min)
+	// os := osc.Sine(44100, min)
+	os := fxp.Serially(
+		fxp.Mult{3},
+		fxp.Concurrently(
+			osc.Saw(44100, min),
+			osc.Saw(44100, min+0.2),
+			osc.Saw(44100, min-0.2),
+		),
+		fxp.Sum(3),
+	)
 	if len(inps) == 0 {
 		return os
 	}
@@ -174,6 +187,39 @@ func midikeys(n int) fxp.Ticker {
 		hid.NewMidiNotes(n),
 		fxp.Concurrently(voices...),
 		fxp.Sum(n),
+		&filter.SVF2{},
+		fxp.Mix2([]fix.S26{fix.S26FromFloat(2.0)}),
+	)
+}
+
+func noise() fxp.Ticker {
+	const n = 8
+	kss := make([]fxp.Ticker, n)
+	for i := range kss {
+		kss[i] = fxp.Serially(
+			fxp.Collect(2, []int{1, 0, 1}),
+			fxp.Concurrently(
+				fxp.Serially(
+					fxp.Concurrently(
+						fxp.Noise(),
+						env.AttackDecay(
+							50*time.Millisecond,
+							100*time.Millisecond,
+							44100,
+						),
+					),
+					fxp.Amp{},
+					&filter.SVF2{},
+				),
+				fxp.Collect(2, []int{0, 1}),
+			),
+			wg.NewKS2(44100),
+		)
+	}
+	return fxp.Serially(
+		hid.NewMidiNotes(n),
+		fxp.Concurrently(kss...),
+		fxp.Sum(n),
 	)
 }
 
@@ -191,17 +237,23 @@ func main() {
 			}
 		}()
 	}
+	var filename string
+	if *writeFlag {
+		filename = fmt.Sprintf("out-%d.wav", time.Now().Unix())
+		fmt.Fprintf(os.Stderr, "Writing output to %q\n", filename)
+	}
 
 	g, ctx := errgroup.WithContext(interruptContext())
 
 	//t := delays()
-	t := midikeys(4)
+	// t := midikeys(4)
+	t := noise()
 
 	c := newCopier(t.Outputs())
 	ch := fxp.Serially(t, c)
 
 	g.Go(func() error {
-		return io.PlayWithDefaults(ctx, ch)
+		return io.PlayWithDefaults(ctx, ch, filename)
 	})
 	g.Go(func() error {
 		t0 := time.Now()

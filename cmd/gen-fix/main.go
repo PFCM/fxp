@@ -12,7 +12,8 @@ import (
 )
 
 var (
-	dirFlag = flag.String("dir", "", "directory in which to write output")
+	dirFlag     = flag.String("dir", "", "directory in which to write generated types/tests")
+	showDirFlag = flag.String("show_dir", "", "directory in which to write generated helpers for show-fix")
 
 	genOpsFlag   = flag.Bool("ops", true, "whether or not to generate tests/benchmarks for the hand-written saturating arithmetic in sat.go")
 	genTypesFlag = flag.Bool("types", true, "whether or not to generate all of the various fixed-point types")
@@ -73,7 +74,23 @@ func genTypes() error {
 			return err
 		}
 	}
-	return write("pairs.go", gen.GenPairs)
+	if err := write("pairs.go", gen.GenPairs); err != nil {
+		return err
+	}
+	return writeShow()
+}
+
+func writeShow() error {
+	b, err := gen.GenShow()
+	if err != nil {
+		return err
+	}
+	path := filepath.Join(*showDirFlag, "show.go")
+	if err := os.WriteFile(path, b, 0666); err != nil {
+		return err
+	}
+	log.Printf("Write %q", path)
+	return nil
 }
 
 func write(filename string, f func() ([]byte, error)) error {

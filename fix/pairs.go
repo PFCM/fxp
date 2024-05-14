@@ -40,6 +40,42 @@ func (a U08) SMulU17(b U17) U08 {
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
+// begin (U08, U26) -> U08
+
+// U26ToU08 converts a U26 to a U08.
+// U08 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 0.99609375.
+func U26ToU08(b U26) U08 {
+	// U08 has fewer integer bits and therefore a narrower range
+	// than U26. If anything we're about to shift off is not zero,
+	// then we can't represent b and need to use the maximum.
+	m := 0xff << (8 - 2)
+	if b&U26(m) != 0 {
+		return MaxU08
+	}
+	return U08(b) << 2
+}
+
+// SAddU26 adds a U08 and a U26, storing the
+// result in a U08.
+func (a U08) SAddU26(b U26) U08 {
+	return a.SAdd(U26ToU08(b))
+}
+
+func (a U08) SSubU26(b U26) U08 {
+	return a.SSub(U26ToU08(b))
+}
+
+// SMulU26 performs a saturating multiply between a U08
+// and a U26, returning the result in a U08.
+func (a U08) SMulU26(b U26) U08 {
+	return U08(usmul2(uint8(a), 8, uint8(b), 6))
+}
+
+// end (U08, U26) -> U08
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
 // begin (U08, U71) -> U08
 
 // U71ToU08 converts a U71 to a U08.
@@ -73,6 +109,42 @@ func (a U08) SMulU71(b U71) U08 {
 }
 
 // end (U08, U71) -> U08
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U08, U80) -> U08
+
+// U80ToU08 converts a U80 to a U08.
+// U08 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 0.99609375.
+func U80ToU08(b U80) U08 {
+	// U08 has fewer integer bits and therefore a narrower range
+	// than U80. If anything we're about to shift off is not zero,
+	// then we can't represent b and need to use the maximum.
+	m := 0xff << (8 - 8)
+	if b&U80(m) != 0 {
+		return MaxU08
+	}
+	return U08(b) << 8
+}
+
+// SAddU80 adds a U08 and a U80, storing the
+// result in a U08.
+func (a U08) SAddU80(b U80) U08 {
+	return a.SAdd(U80ToU08(b))
+}
+
+func (a U08) SSubU80(b U80) U08 {
+	return a.SSub(U80ToU08(b))
+}
+
+// SMulU80 performs a saturating multiply between a U08
+// and a U80, returning the result in a U08.
+func (a U08) SMulU80(b U80) U08 {
+	return U08(usmul2(uint8(a), 8, uint8(b), 0))
+}
+
+// end (U08, U80) -> U08
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,6 +207,124 @@ func (a U08) SMulS17(b S17) U08 {
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
+// begin (U08, S26) -> U08
+
+// S26ToU08 converts a S26 to a U08.
+// U08 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 0.99609375.
+func S26ToU08(b S26) U08 {
+	// U08 is not signed, S26 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU08
+	}
+	return U08(b) << 2
+}
+
+// SAddS26 adds a U08 and a S26, storing the
+// result in a U08.
+func (a U08) SAddS26(b S26) U08 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU08(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S26ToU08(MaxS26)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S26ToU08(-b))
+	}
+	return a.SAdd(S26ToU08(b))
+}
+
+func (a U08) SSubS26(b S26) U08 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU08(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S26ToU08(MaxS26)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S26ToU08(-b))
+	}
+	return a.SSub(S26ToU08(b))
+}
+
+// SMulS26 performs a saturating multiply between a U08
+// and a S26, returning the result in a U08.
+// As U08 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U08) SMulS26(b S26) U08 {
+	return U08(ussmul2(uint8(a), 8, int8(b), 6))
+}
+
+// end (U08, S26) -> U08
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U08, S80) -> U08
+
+// S80ToU08 converts a S80 to a U08.
+// U08 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 0.99609375.
+func S80ToU08(b S80) U08 {
+	// U08 is not signed, S80 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU08
+	}
+	return U08(b) << 8
+}
+
+// SAddS80 adds a U08 and a S80, storing the
+// result in a U08.
+func (a U08) SAddS80(b S80) U08 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU08(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S80ToU08(MaxS80)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S80ToU08(-b))
+	}
+	return a.SAdd(S80ToU08(b))
+}
+
+func (a U08) SSubS80(b S80) U08 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU08(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S80ToU08(MaxS80)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S80ToU08(-b))
+	}
+	return a.SSub(S80ToU08(b))
+}
+
+// SMulS80 performs a saturating multiply between a U08
+// and a S80, returning the result in a U08.
+// As U08 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U08) SMulS80(b S80) U08 {
+	return U08(ussmul2(uint8(a), 8, int8(b), 0))
+}
+
+// end (U08, S80) -> U08
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
 // begin (U17, U08) -> U17
 
 // U08ToU17 converts a U08 to a U17.
@@ -162,6 +352,42 @@ func (a U17) SMulU08(b U08) U17 {
 }
 
 // end (U17, U08) -> U17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U17, U26) -> U17
+
+// U26ToU17 converts a U26 to a U17.
+// U17 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 1.9921875.
+func U26ToU17(b U26) U17 {
+	// U17 has fewer integer bits and therefore a narrower range
+	// than U26. If anything we're about to shift off is not zero,
+	// then we can't represent b and need to use the maximum.
+	m := 0xff << (8 - 1)
+	if b&U26(m) != 0 {
+		return MaxU17
+	}
+	return U17(b) << 1
+}
+
+// SAddU26 adds a U17 and a U26, storing the
+// result in a U17.
+func (a U17) SAddU26(b U26) U17 {
+	return a.SAdd(U26ToU17(b))
+}
+
+func (a U17) SSubU26(b U26) U17 {
+	return a.SSub(U26ToU17(b))
+}
+
+// SMulU26 performs a saturating multiply between a U17
+// and a U26, returning the result in a U17.
+func (a U17) SMulU26(b U26) U17 {
+	return U17(usmul2(uint8(a), 7, uint8(b), 6))
+}
+
+// end (U17, U26) -> U17
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -198,6 +424,42 @@ func (a U17) SMulU71(b U71) U17 {
 }
 
 // end (U17, U71) -> U17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U17, U80) -> U17
+
+// U80ToU17 converts a U80 to a U17.
+// U17 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 1.9921875.
+func U80ToU17(b U80) U17 {
+	// U17 has fewer integer bits and therefore a narrower range
+	// than U80. If anything we're about to shift off is not zero,
+	// then we can't represent b and need to use the maximum.
+	m := 0xff << (8 - 7)
+	if b&U80(m) != 0 {
+		return MaxU17
+	}
+	return U17(b) << 7
+}
+
+// SAddU80 adds a U17 and a U80, storing the
+// result in a U17.
+func (a U17) SAddU80(b U80) U17 {
+	return a.SAdd(U80ToU17(b))
+}
+
+func (a U17) SSubU80(b U80) U17 {
+	return a.SSub(U80ToU17(b))
+}
+
+// SMulU80 performs a saturating multiply between a U17
+// and a U80, returning the result in a U17.
+func (a U17) SMulU80(b U80) U17 {
+	return U17(usmul2(uint8(a), 7, uint8(b), 0))
+}
+
+// end (U17, U80) -> U17
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,6 +523,435 @@ func (a U17) SMulS17(b S17) U17 {
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
+// begin (U17, S26) -> U17
+
+// S26ToU17 converts a S26 to a U17.
+// U17 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 1.9921875.
+func S26ToU17(b S26) U17 {
+	// U17 is not signed, S26 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU17
+	}
+	return U17(b) << 1
+}
+
+// SAddS26 adds a U17 and a S26, storing the
+// result in a U17.
+func (a U17) SAddS26(b S26) U17 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU17(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S26ToU17(MaxS26)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S26ToU17(-b))
+	}
+	return a.SAdd(S26ToU17(b))
+}
+
+func (a U17) SSubS26(b S26) U17 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU17(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S26ToU17(MaxS26)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S26ToU17(-b))
+	}
+	return a.SSub(S26ToU17(b))
+}
+
+// SMulS26 performs a saturating multiply between a U17
+// and a S26, returning the result in a U17.
+// As U17 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U17) SMulS26(b S26) U17 {
+	return U17(ussmul2(uint8(a), 7, int8(b), 6))
+}
+
+// end (U17, S26) -> U17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U17, S80) -> U17
+
+// S80ToU17 converts a S80 to a U17.
+// U17 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 1.9921875.
+func S80ToU17(b S80) U17 {
+	// U17 is not signed, S80 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU17
+	}
+	return U17(b) << 7
+}
+
+// SAddS80 adds a U17 and a S80, storing the
+// result in a U17.
+func (a U17) SAddS80(b S80) U17 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU17(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S80ToU17(MaxS80)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S80ToU17(-b))
+	}
+	return a.SAdd(S80ToU17(b))
+}
+
+func (a U17) SSubS80(b S80) U17 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU17(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S80ToU17(MaxS80)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S80ToU17(-b))
+	}
+	return a.SSub(S80ToU17(b))
+}
+
+// SMulS80 performs a saturating multiply between a U17
+// and a S80, returning the result in a U17.
+// As U17 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U17) SMulS80(b S80) U17 {
+	return U17(ussmul2(uint8(a), 7, int8(b), 0))
+}
+
+// end (U17, S80) -> U17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U26, U08) -> U26
+
+// U08ToU26 converts a U08 to a U26.
+// U26 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 0.99609375 (rounding to a valid U26
+// towards zero).
+func U08ToU26(b U08) U26 {
+	return U26(b) >> 2
+}
+
+// SAddU08 adds a U26 and a U08, storing the
+// result in a U26.
+func (a U26) SAddU08(b U08) U26 {
+	return a.SAdd(U08ToU26(b))
+}
+
+func (a U26) SSubU08(b U08) U26 {
+	return a.SSub(U08ToU26(b))
+}
+
+// SMulU08 performs a saturating multiply between a U26
+// and a U08, returning the result in a U26.
+func (a U26) SMulU08(b U08) U26 {
+	return U26(usmul2(uint8(a), 6, uint8(b), 8))
+}
+
+// end (U26, U08) -> U26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U26, U17) -> U26
+
+// U17ToU26 converts a U17 to a U26.
+// U26 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 1.9921875 (rounding to a valid U26
+// towards zero).
+func U17ToU26(b U17) U26 {
+	return U26(b) >> 1
+}
+
+// SAddU17 adds a U26 and a U17, storing the
+// result in a U26.
+func (a U26) SAddU17(b U17) U26 {
+	return a.SAdd(U17ToU26(b))
+}
+
+func (a U26) SSubU17(b U17) U26 {
+	return a.SSub(U17ToU26(b))
+}
+
+// SMulU17 performs a saturating multiply between a U26
+// and a U17, returning the result in a U26.
+func (a U26) SMulU17(b U17) U26 {
+	return U26(usmul2(uint8(a), 6, uint8(b), 7))
+}
+
+// end (U26, U17) -> U26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U26, U71) -> U26
+
+// U71ToU26 converts a U71 to a U26.
+// U26 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 3.984375.
+func U71ToU26(b U71) U26 {
+	// U26 has fewer integer bits and therefore a narrower range
+	// than U71. If anything we're about to shift off is not zero,
+	// then we can't represent b and need to use the maximum.
+	m := 0xff << (8 - 5)
+	if b&U71(m) != 0 {
+		return MaxU26
+	}
+	return U26(b) << 5
+}
+
+// SAddU71 adds a U26 and a U71, storing the
+// result in a U26.
+func (a U26) SAddU71(b U71) U26 {
+	return a.SAdd(U71ToU26(b))
+}
+
+func (a U26) SSubU71(b U71) U26 {
+	return a.SSub(U71ToU26(b))
+}
+
+// SMulU71 performs a saturating multiply between a U26
+// and a U71, returning the result in a U26.
+func (a U26) SMulU71(b U71) U26 {
+	return U26(usmul2(uint8(a), 6, uint8(b), 1))
+}
+
+// end (U26, U71) -> U26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U26, U80) -> U26
+
+// U80ToU26 converts a U80 to a U26.
+// U26 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 3.984375.
+func U80ToU26(b U80) U26 {
+	// U26 has fewer integer bits and therefore a narrower range
+	// than U80. If anything we're about to shift off is not zero,
+	// then we can't represent b and need to use the maximum.
+	m := 0xff << (8 - 6)
+	if b&U80(m) != 0 {
+		return MaxU26
+	}
+	return U26(b) << 6
+}
+
+// SAddU80 adds a U26 and a U80, storing the
+// result in a U26.
+func (a U26) SAddU80(b U80) U26 {
+	return a.SAdd(U80ToU26(b))
+}
+
+func (a U26) SSubU80(b U80) U26 {
+	return a.SSub(U80ToU26(b))
+}
+
+// SMulU80 performs a saturating multiply between a U26
+// and a U80, returning the result in a U26.
+func (a U26) SMulU80(b U80) U26 {
+	return U26(usmul2(uint8(a), 6, uint8(b), 0))
+}
+
+// end (U26, U80) -> U26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U26, S17) -> U26
+
+// S17ToU26 converts a S17 to a U26.
+// U26 has fewer fractional bits and therefore a wider range, so the
+// result will be between -1 and 0.9921875 (rounding to a valid U26
+// towards zero).
+func S17ToU26(b S17) U26 {
+	// U26 is not signed, S17 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU26
+	}
+	return U26(b) >> 1
+}
+
+// SAddS17 adds a U26 and a S17, storing the
+// result in a U26.
+func (a U26) SAddS17(b S17) U26 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS17 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S17ToU26(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S17ToU26(MaxS17)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S17ToU26(-b))
+	}
+	return a.SAdd(S17ToU26(b))
+}
+
+func (a U26) SSubS17(b S17) U26 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS17 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S17ToU26(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S17ToU26(MaxS17)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S17ToU26(-b))
+	}
+	return a.SSub(S17ToU26(b))
+}
+
+// SMulS17 performs a saturating multiply between a U26
+// and a S17, returning the result in a U26.
+// As U26 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U26) SMulS17(b S17) U26 {
+	return U26(ussmul2(uint8(a), 6, int8(b), 7))
+}
+
+// end (U26, S17) -> U26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U26, S26) -> U26
+
+// S26ToU26 converts a S26 to a U26.
+// The two types have the same number of fractional bits, but as U26 is
+// not signed and S26 is, the result will be clipped between 0
+// and 1.984375.
+func S26ToU26(b S26) U26 {
+	// U26 is not signed, S26 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU26
+	}
+	return U26(b)
+}
+
+// SAddS26 adds a U26 and a S26, storing the
+// result in a U26.
+func (a U26) SAddS26(b S26) U26 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU26(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S26ToU26(MaxS26)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S26ToU26(-b))
+	}
+	return a.SAdd(S26ToU26(b))
+}
+
+func (a U26) SSubS26(b S26) U26 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU26(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S26ToU26(MaxS26)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S26ToU26(-b))
+	}
+	return a.SSub(S26ToU26(b))
+}
+
+// SMulS26 performs a saturating multiply between a U26
+// and a S26, returning the result in a U26.
+// As U26 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U26) SMulS26(b S26) U26 {
+	return U26(ussmul2(uint8(a), 6, int8(b), 6))
+}
+
+// end (U26, S26) -> U26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U26, S80) -> U26
+
+// S80ToU26 converts a S80 to a U26.
+// U26 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 3.984375.
+func S80ToU26(b S80) U26 {
+	// U26 is not signed, S80 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU26
+	}
+	return U26(b) << 6
+}
+
+// SAddS80 adds a U26 and a S80, storing the
+// result in a U26.
+func (a U26) SAddS80(b S80) U26 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU26(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S80ToU26(MaxS80)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S80ToU26(-b))
+	}
+	return a.SAdd(S80ToU26(b))
+}
+
+func (a U26) SSubS80(b S80) U26 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU26(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S80ToU26(MaxS80)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S80ToU26(-b))
+	}
+	return a.SSub(S80ToU26(b))
+}
+
+// SMulS80 performs a saturating multiply between a U26
+// and a S80, returning the result in a U26.
+// As U26 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U26) SMulS80(b S80) U26 {
+	return U26(ussmul2(uint8(a), 6, int8(b), 0))
+}
+
+// end (U26, S80) -> U26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
 // begin (U71, U08) -> U71
 
 // U08ToU71 converts a U08 to a U71.
@@ -321,6 +1012,72 @@ func (a U71) SMulU17(b U17) U71 {
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
+// begin (U71, U26) -> U71
+
+// U26ToU71 converts a U26 to a U71.
+// U71 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 3.984375 (rounding to a valid U71
+// towards zero).
+func U26ToU71(b U26) U71 {
+	return U71(b) >> 5
+}
+
+// SAddU26 adds a U71 and a U26, storing the
+// result in a U71.
+func (a U71) SAddU26(b U26) U71 {
+	return a.SAdd(U26ToU71(b))
+}
+
+func (a U71) SSubU26(b U26) U71 {
+	return a.SSub(U26ToU71(b))
+}
+
+// SMulU26 performs a saturating multiply between a U71
+// and a U26, returning the result in a U71.
+func (a U71) SMulU26(b U26) U71 {
+	return U71(usmul2(uint8(a), 1, uint8(b), 6))
+}
+
+// end (U71, U26) -> U71
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U71, U80) -> U71
+
+// U80ToU71 converts a U80 to a U71.
+// U71 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 127.5.
+func U80ToU71(b U80) U71 {
+	// U71 has fewer integer bits and therefore a narrower range
+	// than U80. If anything we're about to shift off is not zero,
+	// then we can't represent b and need to use the maximum.
+	m := 0xff << (8 - 1)
+	if b&U80(m) != 0 {
+		return MaxU71
+	}
+	return U71(b) << 1
+}
+
+// SAddU80 adds a U71 and a U80, storing the
+// result in a U71.
+func (a U71) SAddU80(b U80) U71 {
+	return a.SAdd(U80ToU71(b))
+}
+
+func (a U71) SSubU80(b U80) U71 {
+	return a.SSub(U80ToU71(b))
+}
+
+// SMulU80 performs a saturating multiply between a U71
+// and a U80, returning the result in a U71.
+func (a U71) SMulU80(b U80) U71 {
+	return U71(usmul2(uint8(a), 1, uint8(b), 0))
+}
+
+// end (U71, U80) -> U71
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
 // begin (U71, S17) -> U71
 
 // S17ToU71 converts a S17 to a U71.
@@ -378,6 +1135,425 @@ func (a U71) SMulS17(b S17) U71 {
 }
 
 // end (U71, S17) -> U71
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U71, S26) -> U71
+
+// S26ToU71 converts a S26 to a U71.
+// U71 has fewer fractional bits and therefore a wider range, so the
+// result will be between -2 and 1.984375 (rounding to a valid U71
+// towards zero).
+func S26ToU71(b S26) U71 {
+	// U71 is not signed, S26 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU71
+	}
+	return U71(b) >> 5
+}
+
+// SAddS26 adds a U71 and a S26, storing the
+// result in a U71.
+func (a U71) SAddS26(b S26) U71 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU71(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S26ToU71(MaxS26)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S26ToU71(-b))
+	}
+	return a.SAdd(S26ToU71(b))
+}
+
+func (a U71) SSubS26(b S26) U71 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU71(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S26ToU71(MaxS26)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S26ToU71(-b))
+	}
+	return a.SSub(S26ToU71(b))
+}
+
+// SMulS26 performs a saturating multiply between a U71
+// and a S26, returning the result in a U71.
+// As U71 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U71) SMulS26(b S26) U71 {
+	return U71(ussmul2(uint8(a), 1, int8(b), 6))
+}
+
+// end (U71, S26) -> U71
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U71, S80) -> U71
+
+// S80ToU71 converts a S80 to a U71.
+// U71 has more fractional bits and therefore a narrower range, so the
+// result will be capped between 0 and 127.5.
+func S80ToU71(b S80) U71 {
+	// U71 is not signed, S80 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU71
+	}
+	return U71(b) << 1
+}
+
+// SAddS80 adds a U71 and a S80, storing the
+// result in a U71.
+func (a U71) SAddS80(b S80) U71 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU71(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S80ToU71(MaxS80)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S80ToU71(-b))
+	}
+	return a.SAdd(S80ToU71(b))
+}
+
+func (a U71) SSubS80(b S80) U71 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU71(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S80ToU71(MaxS80)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S80ToU71(-b))
+	}
+	return a.SSub(S80ToU71(b))
+}
+
+// SMulS80 performs a saturating multiply between a U71
+// and a S80, returning the result in a U71.
+// As U71 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U71) SMulS80(b S80) U71 {
+	return U71(ussmul2(uint8(a), 1, int8(b), 0))
+}
+
+// end (U71, S80) -> U71
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U80, U08) -> U80
+
+// U08ToU80 converts a U08 to a U80.
+// U80 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 0.99609375 (rounding to a valid U80
+// towards zero).
+func U08ToU80(b U08) U80 {
+	return U80(b) >> 8
+}
+
+// SAddU08 adds a U80 and a U08, storing the
+// result in a U80.
+func (a U80) SAddU08(b U08) U80 {
+	return a.SAdd(U08ToU80(b))
+}
+
+func (a U80) SSubU08(b U08) U80 {
+	return a.SSub(U08ToU80(b))
+}
+
+// SMulU08 performs a saturating multiply between a U80
+// and a U08, returning the result in a U80.
+func (a U80) SMulU08(b U08) U80 {
+	return U80(usmul2(uint8(a), 0, uint8(b), 8))
+}
+
+// end (U80, U08) -> U80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U80, U17) -> U80
+
+// U17ToU80 converts a U17 to a U80.
+// U80 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 1.9921875 (rounding to a valid U80
+// towards zero).
+func U17ToU80(b U17) U80 {
+	return U80(b) >> 7
+}
+
+// SAddU17 adds a U80 and a U17, storing the
+// result in a U80.
+func (a U80) SAddU17(b U17) U80 {
+	return a.SAdd(U17ToU80(b))
+}
+
+func (a U80) SSubU17(b U17) U80 {
+	return a.SSub(U17ToU80(b))
+}
+
+// SMulU17 performs a saturating multiply between a U80
+// and a U17, returning the result in a U80.
+func (a U80) SMulU17(b U17) U80 {
+	return U80(usmul2(uint8(a), 0, uint8(b), 7))
+}
+
+// end (U80, U17) -> U80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U80, U26) -> U80
+
+// U26ToU80 converts a U26 to a U80.
+// U80 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 3.984375 (rounding to a valid U80
+// towards zero).
+func U26ToU80(b U26) U80 {
+	return U80(b) >> 6
+}
+
+// SAddU26 adds a U80 and a U26, storing the
+// result in a U80.
+func (a U80) SAddU26(b U26) U80 {
+	return a.SAdd(U26ToU80(b))
+}
+
+func (a U80) SSubU26(b U26) U80 {
+	return a.SSub(U26ToU80(b))
+}
+
+// SMulU26 performs a saturating multiply between a U80
+// and a U26, returning the result in a U80.
+func (a U80) SMulU26(b U26) U80 {
+	return U80(usmul2(uint8(a), 0, uint8(b), 6))
+}
+
+// end (U80, U26) -> U80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U80, U71) -> U80
+
+// U71ToU80 converts a U71 to a U80.
+// U80 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 127.5 (rounding to a valid U80
+// towards zero).
+func U71ToU80(b U71) U80 {
+	return U80(b) >> 1
+}
+
+// SAddU71 adds a U80 and a U71, storing the
+// result in a U80.
+func (a U80) SAddU71(b U71) U80 {
+	return a.SAdd(U71ToU80(b))
+}
+
+func (a U80) SSubU71(b U71) U80 {
+	return a.SSub(U71ToU80(b))
+}
+
+// SMulU71 performs a saturating multiply between a U80
+// and a U71, returning the result in a U80.
+func (a U80) SMulU71(b U71) U80 {
+	return U80(usmul2(uint8(a), 0, uint8(b), 1))
+}
+
+// end (U80, U71) -> U80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U80, S17) -> U80
+
+// S17ToU80 converts a S17 to a U80.
+// U80 has fewer fractional bits and therefore a wider range, so the
+// result will be between -1 and 0.9921875 (rounding to a valid U80
+// towards zero).
+func S17ToU80(b S17) U80 {
+	// U80 is not signed, S17 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU80
+	}
+	return U80(b) >> 7
+}
+
+// SAddS17 adds a U80 and a S17, storing the
+// result in a U80.
+func (a U80) SAddS17(b S17) U80 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS17 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S17ToU80(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S17ToU80(MaxS17)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S17ToU80(-b))
+	}
+	return a.SAdd(S17ToU80(b))
+}
+
+func (a U80) SSubS17(b S17) U80 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS17 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S17ToU80(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S17ToU80(MaxS17)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S17ToU80(-b))
+	}
+	return a.SSub(S17ToU80(b))
+}
+
+// SMulS17 performs a saturating multiply between a U80
+// and a S17, returning the result in a U80.
+// As U80 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U80) SMulS17(b S17) U80 {
+	return U80(ussmul2(uint8(a), 0, int8(b), 7))
+}
+
+// end (U80, S17) -> U80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U80, S26) -> U80
+
+// S26ToU80 converts a S26 to a U80.
+// U80 has fewer fractional bits and therefore a wider range, so the
+// result will be between -2 and 1.984375 (rounding to a valid U80
+// towards zero).
+func S26ToU80(b S26) U80 {
+	// U80 is not signed, S26 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU80
+	}
+	return U80(b) >> 6
+}
+
+// SAddS26 adds a U80 and a S26, storing the
+// result in a U80.
+func (a U80) SAddS26(b S26) U80 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU80(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S26ToU80(MaxS26)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S26ToU80(-b))
+	}
+	return a.SAdd(S26ToU80(b))
+}
+
+func (a U80) SSubS26(b S26) U80 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS26 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S26ToU80(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S26ToU80(MaxS26)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S26ToU80(-b))
+	}
+	return a.SSub(S26ToU80(b))
+}
+
+// SMulS26 performs a saturating multiply between a U80
+// and a S26, returning the result in a U80.
+// As U80 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U80) SMulS26(b S26) U80 {
+	return U80(ussmul2(uint8(a), 0, int8(b), 6))
+}
+
+// end (U80, S26) -> U80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (U80, S80) -> U80
+
+// S80ToU80 converts a S80 to a U80.
+// The two types have the same number of fractional bits, but as U80 is
+// not signed and S80 is, the result will be clipped between 0
+// and 127.
+func S80ToU80(b S80) U80 {
+	// U80 is not signed, S80 is.
+	// We can't represent a negative b, so cut that off at 0.
+	if b < 0 {
+		return MinU80
+	}
+	return U80(b)
+}
+
+// SAddS80 adds a U80 and a S80, storing the
+// result in a U80.
+func (a U80) SAddS80(b S80) U80 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SSub(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU80(-b) = 0).
+		// TODO: we probably don't always need to sub the extra 1?
+		return a.SSub(S80ToU80(MaxS80)).SSub(1)
+	}
+	if b < 0 {
+		return a.SSub(S80ToU80(-b))
+	}
+	return a.SAdd(S80ToU80(b))
+}
+
+func (a U80) SSubS80(b S80) U80 {
+	// If b is negative, try and subtract its absolute value,
+	// or as close as we can get.
+	if b == MinS80 {
+		// SAdd(-b) won't work, because this is the one number where
+		// -b = b (so S80ToU80(-b) = 0).
+		// TODO: is this correction always necessary?
+		return a.SAdd(S80ToU80(MaxS80)).SAdd(1)
+	}
+	// If b is negative, add its absolute value instead.
+	if b < 0 {
+		return a.SAdd(S80ToU80(-b))
+	}
+	return a.SSub(S80ToU80(b))
+}
+
+// SMulS80 performs a saturating multiply between a U80
+// and a S80, returning the result in a U80.
+// As U80 is always positive, if b is negative the result will always
+// be truncated to 0.
+func (a U80) SMulS80(b S80) U80 {
+	return U80(ussmul2(uint8(a), 0, int8(b), 0))
+}
+
+// end (U80, S80) -> U80
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -467,6 +1643,56 @@ func (a S17) SMulU17(b U17) S17 {
 ////////////////////////////////////////////////////////////////////////////////
 
 ////////////////////////////////////////////////////////////////////////////////
+// begin (S17, U26) -> S17
+
+// U26ToS17 converts a U26 to a S17.
+// S17 has more fractional bits and therefore a narrower range, so the
+// result will be capped between -1 and 0.9921875.
+func U26ToS17(b U26) S17 {
+	// S17 has a narrower range than U26.
+	m := 0xff << (8 - 1 - 1)
+	if b&U26(m) != 0 {
+		return MaxS17
+	}
+	r := S17(b << 1)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU26 adds a S17 and a U26, storing the
+// result in a S17.
+func (a S17) SAddU26(b U26) S17 {
+	return a.SAdd(U26ToS17(b))
+}
+
+func (a S17) SSubU26(b U26) S17 {
+	m := 0xff << (8 - 1 - 1)
+	if b&U26(m) != 0 {
+		// Direct conversion will saturate, which means the result
+		// will be wrong. To get the right answer (or as close as
+		// we can) break the subtraction into two pieces. Two is
+		// always enough because the largest possible value we can
+		// subtract is the MinS17, which covers more than
+		// half of the possible range of possible S17.
+		a = a.SAdd(MinS17)
+		b = b.SAddS17(MinS17)
+	}
+	return a.SSub(U26ToS17(b))
+}
+
+// SMulU26 performs a saturating multiply between a S17
+// and a U26, returning the result in a S17.
+func (a S17) SMulU26(b U26) S17 {
+	return S17(susmul2(int8(a), 7, uint8(b), 6))
+}
+
+// end (S17, U26) -> S17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
 // begin (S17, U71) -> S17
 
 // U71ToS17 converts a U71 to a S17.
@@ -514,4 +1740,643 @@ func (a S17) SMulU71(b U71) S17 {
 }
 
 // end (S17, U71) -> S17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S17, U80) -> S17
+
+// U80ToS17 converts a U80 to a S17.
+// S17 has more fractional bits and therefore a narrower range, so the
+// result will be capped between -1 and 0.9921875.
+func U80ToS17(b U80) S17 {
+	// S17 has a narrower range than U80.
+	m := 0xff << (8 - 7 - 1)
+	if b&U80(m) != 0 {
+		return MaxS17
+	}
+	r := S17(b << 7)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU80 adds a S17 and a U80, storing the
+// result in a S17.
+func (a S17) SAddU80(b U80) S17 {
+	return a.SAdd(U80ToS17(b))
+}
+
+func (a S17) SSubU80(b U80) S17 {
+	m := 0xff << (8 - 7 - 1)
+	if b&U80(m) != 0 {
+		// Direct conversion will saturate, which means the result
+		// will be wrong. To get the right answer (or as close as
+		// we can) break the subtraction into two pieces. Two is
+		// always enough because the largest possible value we can
+		// subtract is the MinS17, which covers more than
+		// half of the possible range of possible S17.
+		a = a.SAdd(MinS17)
+		b = b.SAddS17(MinS17)
+	}
+	return a.SSub(U80ToS17(b))
+}
+
+// SMulU80 performs a saturating multiply between a S17
+// and a U80, returning the result in a S17.
+func (a S17) SMulU80(b U80) S17 {
+	return S17(susmul2(int8(a), 7, uint8(b), 0))
+}
+
+// end (S17, U80) -> S17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S17, S26) -> S17
+
+// S26ToS17 converts a S26 to a S17.
+// S17 has more fractional bits and therefore a narrower range, so the
+// result will be capped between -1 and 0.9921875.
+func S26ToS17(b S26) S17 {
+	return S17(b) << 1
+}
+
+// SAddS26 adds a S17 and a S26, storing the
+// result in a S17.
+func (a S17) SAddS26(b S26) S17 {
+	return a.SAdd(S26ToS17(b))
+}
+
+func (a S17) SSubS26(b S26) S17 {
+	return a.SSub(S26ToS17(b))
+}
+
+// SMulS26 performs a saturating multiply between a S17
+// and a S26, returning the result in a S17.
+func (a S17) SMulS26(b S26) S17 {
+	return S17(ssmul2(int8(a), 7, int8(b), 6))
+}
+
+// end (S17, S26) -> S17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S17, S80) -> S17
+
+// S80ToS17 converts a S80 to a S17.
+// S17 has more fractional bits and therefore a narrower range, so the
+// result will be capped between -1 and 0.9921875.
+func S80ToS17(b S80) S17 {
+	return S17(b) << 7
+}
+
+// SAddS80 adds a S17 and a S80, storing the
+// result in a S17.
+func (a S17) SAddS80(b S80) S17 {
+	return a.SAdd(S80ToS17(b))
+}
+
+func (a S17) SSubS80(b S80) S17 {
+	return a.SSub(S80ToS17(b))
+}
+
+// SMulS80 performs a saturating multiply between a S17
+// and a S80, returning the result in a S17.
+func (a S17) SMulS80(b S80) S17 {
+	return S17(ssmul2(int8(a), 7, int8(b), 0))
+}
+
+// end (S17, S80) -> S17
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S26, U08) -> S26
+
+// U08ToS26 converts a U08 to a S26.
+// S26 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 0.99609375 (rounding to a valid S26
+// towards zero).
+func U08ToS26(b U08) S26 {
+	r := S26(b >> 2)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU08 adds a S26 and a U08, storing the
+// result in a S26.
+func (a S26) SAddU08(b U08) S26 {
+	return a.SAdd(U08ToS26(b))
+}
+
+func (a S26) SSubU08(b U08) S26 {
+	return a.SSub(U08ToS26(b))
+}
+
+// SMulU08 performs a saturating multiply between a S26
+// and a U08, returning the result in a S26.
+func (a S26) SMulU08(b U08) S26 {
+	return S26(susmul2(int8(a), 6, uint8(b), 8))
+}
+
+// end (S26, U08) -> S26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S26, U17) -> S26
+
+// U17ToS26 converts a U17 to a S26.
+// S26 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 1.9921875 (rounding to a valid S26
+// towards zero).
+func U17ToS26(b U17) S26 {
+	r := S26(b >> 1)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU17 adds a S26 and a U17, storing the
+// result in a S26.
+func (a S26) SAddU17(b U17) S26 {
+	return a.SAdd(U17ToS26(b))
+}
+
+func (a S26) SSubU17(b U17) S26 {
+	return a.SSub(U17ToS26(b))
+}
+
+// SMulU17 performs a saturating multiply between a S26
+// and a U17, returning the result in a S26.
+func (a S26) SMulU17(b U17) S26 {
+	return S26(susmul2(int8(a), 6, uint8(b), 7))
+}
+
+// end (S26, U17) -> S26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S26, U26) -> S26
+
+// U26ToS26 converts a U26 to a S26.
+// The two types have the same number of fractional bits, but as S26 is
+// signed and U26 is not, the result will be positive but truncated
+// at 1.984375.
+func U26ToS26(b U26) S26 {
+	// S26 has a narrower range than U26.
+	m := 0xff << (8 - 0 - 1)
+	if b&U26(m) != 0 {
+		return MaxS26
+	}
+	r := S26(b)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU26 adds a S26 and a U26, storing the
+// result in a S26.
+func (a S26) SAddU26(b U26) S26 {
+	return a.SAdd(U26ToS26(b))
+}
+
+func (a S26) SSubU26(b U26) S26 {
+	m := 0xff << (8 - 0 - 1)
+	if b&U26(m) != 0 {
+		// Direct conversion will saturate, which means the result
+		// will be wrong. To get the right answer (or as close as
+		// we can) break the subtraction into two pieces. Two is
+		// always enough because the largest possible value we can
+		// subtract is the MinS26, which covers more than
+		// half of the possible range of possible S26.
+		a = a.SAdd(MinS26)
+		b = b.SAddS26(MinS26)
+	}
+	return a.SSub(U26ToS26(b))
+}
+
+// SMulU26 performs a saturating multiply between a S26
+// and a U26, returning the result in a S26.
+func (a S26) SMulU26(b U26) S26 {
+	return S26(susmul2(int8(a), 6, uint8(b), 6))
+}
+
+// end (S26, U26) -> S26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S26, U71) -> S26
+
+// U71ToS26 converts a U71 to a S26.
+// S26 has more fractional bits and therefore a narrower range, so the
+// result will be capped between -2 and 1.984375.
+func U71ToS26(b U71) S26 {
+	// S26 has a narrower range than U71.
+	m := 0xff << (8 - 5 - 1)
+	if b&U71(m) != 0 {
+		return MaxS26
+	}
+	r := S26(b << 5)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU71 adds a S26 and a U71, storing the
+// result in a S26.
+func (a S26) SAddU71(b U71) S26 {
+	return a.SAdd(U71ToS26(b))
+}
+
+func (a S26) SSubU71(b U71) S26 {
+	m := 0xff << (8 - 5 - 1)
+	if b&U71(m) != 0 {
+		// Direct conversion will saturate, which means the result
+		// will be wrong. To get the right answer (or as close as
+		// we can) break the subtraction into two pieces. Two is
+		// always enough because the largest possible value we can
+		// subtract is the MinS26, which covers more than
+		// half of the possible range of possible S26.
+		a = a.SAdd(MinS26)
+		b = b.SAddS26(MinS26)
+	}
+	return a.SSub(U71ToS26(b))
+}
+
+// SMulU71 performs a saturating multiply between a S26
+// and a U71, returning the result in a S26.
+func (a S26) SMulU71(b U71) S26 {
+	return S26(susmul2(int8(a), 6, uint8(b), 1))
+}
+
+// end (S26, U71) -> S26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S26, U80) -> S26
+
+// U80ToS26 converts a U80 to a S26.
+// S26 has more fractional bits and therefore a narrower range, so the
+// result will be capped between -2 and 1.984375.
+func U80ToS26(b U80) S26 {
+	// S26 has a narrower range than U80.
+	m := 0xff << (8 - 6 - 1)
+	if b&U80(m) != 0 {
+		return MaxS26
+	}
+	r := S26(b << 6)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU80 adds a S26 and a U80, storing the
+// result in a S26.
+func (a S26) SAddU80(b U80) S26 {
+	return a.SAdd(U80ToS26(b))
+}
+
+func (a S26) SSubU80(b U80) S26 {
+	m := 0xff << (8 - 6 - 1)
+	if b&U80(m) != 0 {
+		// Direct conversion will saturate, which means the result
+		// will be wrong. To get the right answer (or as close as
+		// we can) break the subtraction into two pieces. Two is
+		// always enough because the largest possible value we can
+		// subtract is the MinS26, which covers more than
+		// half of the possible range of possible S26.
+		a = a.SAdd(MinS26)
+		b = b.SAddS26(MinS26)
+	}
+	return a.SSub(U80ToS26(b))
+}
+
+// SMulU80 performs a saturating multiply between a S26
+// and a U80, returning the result in a S26.
+func (a S26) SMulU80(b U80) S26 {
+	return S26(susmul2(int8(a), 6, uint8(b), 0))
+}
+
+// end (S26, U80) -> S26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S26, S17) -> S26
+
+// S17ToS26 converts a S17 to a S26.
+// S26 has fewer fractional bits and therefore a wider range, so the
+// result will be between -1 and 0.9921875 (rounding to a valid S26
+// towards zero).
+func S17ToS26(b S17) S26 {
+	return S26(b) >> 1
+}
+
+// SAddS17 adds a S26 and a S17, storing the
+// result in a S26.
+func (a S26) SAddS17(b S17) S26 {
+	return a.SAdd(S17ToS26(b))
+}
+
+func (a S26) SSubS17(b S17) S26 {
+	return a.SSub(S17ToS26(b))
+}
+
+// SMulS17 performs a saturating multiply between a S26
+// and a S17, returning the result in a S26.
+func (a S26) SMulS17(b S17) S26 {
+	return S26(ssmul2(int8(a), 6, int8(b), 7))
+}
+
+// end (S26, S17) -> S26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S26, S80) -> S26
+
+// S80ToS26 converts a S80 to a S26.
+// S26 has more fractional bits and therefore a narrower range, so the
+// result will be capped between -2 and 1.984375.
+func S80ToS26(b S80) S26 {
+	return S26(b) << 6
+}
+
+// SAddS80 adds a S26 and a S80, storing the
+// result in a S26.
+func (a S26) SAddS80(b S80) S26 {
+	return a.SAdd(S80ToS26(b))
+}
+
+func (a S26) SSubS80(b S80) S26 {
+	return a.SSub(S80ToS26(b))
+}
+
+// SMulS80 performs a saturating multiply between a S26
+// and a S80, returning the result in a S26.
+func (a S26) SMulS80(b S80) S26 {
+	return S26(ssmul2(int8(a), 6, int8(b), 0))
+}
+
+// end (S26, S80) -> S26
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S80, U08) -> S80
+
+// U08ToS80 converts a U08 to a S80.
+// S80 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 0.99609375 (rounding to a valid S80
+// towards zero).
+func U08ToS80(b U08) S80 {
+	r := S80(b >> 8)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU08 adds a S80 and a U08, storing the
+// result in a S80.
+func (a S80) SAddU08(b U08) S80 {
+	return a.SAdd(U08ToS80(b))
+}
+
+func (a S80) SSubU08(b U08) S80 {
+	return a.SSub(U08ToS80(b))
+}
+
+// SMulU08 performs a saturating multiply between a S80
+// and a U08, returning the result in a S80.
+func (a S80) SMulU08(b U08) S80 {
+	return S80(susmul2(int8(a), 0, uint8(b), 8))
+}
+
+// end (S80, U08) -> S80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S80, U17) -> S80
+
+// U17ToS80 converts a U17 to a S80.
+// S80 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 1.9921875 (rounding to a valid S80
+// towards zero).
+func U17ToS80(b U17) S80 {
+	r := S80(b >> 7)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU17 adds a S80 and a U17, storing the
+// result in a S80.
+func (a S80) SAddU17(b U17) S80 {
+	return a.SAdd(U17ToS80(b))
+}
+
+func (a S80) SSubU17(b U17) S80 {
+	return a.SSub(U17ToS80(b))
+}
+
+// SMulU17 performs a saturating multiply between a S80
+// and a U17, returning the result in a S80.
+func (a S80) SMulU17(b U17) S80 {
+	return S80(susmul2(int8(a), 0, uint8(b), 7))
+}
+
+// end (S80, U17) -> S80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S80, U26) -> S80
+
+// U26ToS80 converts a U26 to a S80.
+// S80 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 3.984375 (rounding to a valid S80
+// towards zero).
+func U26ToS80(b U26) S80 {
+	r := S80(b >> 6)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU26 adds a S80 and a U26, storing the
+// result in a S80.
+func (a S80) SAddU26(b U26) S80 {
+	return a.SAdd(U26ToS80(b))
+}
+
+func (a S80) SSubU26(b U26) S80 {
+	return a.SSub(U26ToS80(b))
+}
+
+// SMulU26 performs a saturating multiply between a S80
+// and a U26, returning the result in a S80.
+func (a S80) SMulU26(b U26) S80 {
+	return S80(susmul2(int8(a), 0, uint8(b), 6))
+}
+
+// end (S80, U26) -> S80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S80, U71) -> S80
+
+// U71ToS80 converts a U71 to a S80.
+// S80 has fewer fractional bits and therefore a wider range, so the
+// result will be between 0 and 127.5 (rounding to a valid S80
+// towards zero).
+func U71ToS80(b U71) S80 {
+	r := S80(b >> 1)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU71 adds a S80 and a U71, storing the
+// result in a S80.
+func (a S80) SAddU71(b U71) S80 {
+	return a.SAdd(U71ToS80(b))
+}
+
+func (a S80) SSubU71(b U71) S80 {
+	return a.SSub(U71ToS80(b))
+}
+
+// SMulU71 performs a saturating multiply between a S80
+// and a U71, returning the result in a S80.
+func (a S80) SMulU71(b U71) S80 {
+	return S80(susmul2(int8(a), 0, uint8(b), 1))
+}
+
+// end (S80, U71) -> S80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S80, U80) -> S80
+
+// U80ToS80 converts a U80 to a S80.
+// The two types have the same number of fractional bits, but as S80 is
+// signed and U80 is not, the result will be positive but truncated
+// at 127.
+func U80ToS80(b U80) S80 {
+	// S80 has a narrower range than U80.
+	m := 0xff << (8 - 0 - 1)
+	if b&U80(m) != 0 {
+		return MaxS80
+	}
+	r := S80(b)
+	// TODO: we don't need to do this if we shifted right.
+	if r < 0 {
+		r = 0
+	}
+	return r
+}
+
+// SAddU80 adds a S80 and a U80, storing the
+// result in a S80.
+func (a S80) SAddU80(b U80) S80 {
+	return a.SAdd(U80ToS80(b))
+}
+
+func (a S80) SSubU80(b U80) S80 {
+	m := 0xff << (8 - 0 - 1)
+	if b&U80(m) != 0 {
+		// Direct conversion will saturate, which means the result
+		// will be wrong. To get the right answer (or as close as
+		// we can) break the subtraction into two pieces. Two is
+		// always enough because the largest possible value we can
+		// subtract is the MinS80, which covers more than
+		// half of the possible range of possible S80.
+		a = a.SAdd(MinS80)
+		b = b.SAddS80(MinS80)
+	}
+	return a.SSub(U80ToS80(b))
+}
+
+// SMulU80 performs a saturating multiply between a S80
+// and a U80, returning the result in a S80.
+func (a S80) SMulU80(b U80) S80 {
+	return S80(susmul2(int8(a), 0, uint8(b), 0))
+}
+
+// end (S80, U80) -> S80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S80, S17) -> S80
+
+// S17ToS80 converts a S17 to a S80.
+// S80 has fewer fractional bits and therefore a wider range, so the
+// result will be between -1 and 0.9921875 (rounding to a valid S80
+// towards zero).
+func S17ToS80(b S17) S80 {
+	return S80(b) >> 7
+}
+
+// SAddS17 adds a S80 and a S17, storing the
+// result in a S80.
+func (a S80) SAddS17(b S17) S80 {
+	return a.SAdd(S17ToS80(b))
+}
+
+func (a S80) SSubS17(b S17) S80 {
+	return a.SSub(S17ToS80(b))
+}
+
+// SMulS17 performs a saturating multiply between a S80
+// and a S17, returning the result in a S80.
+func (a S80) SMulS17(b S17) S80 {
+	return S80(ssmul2(int8(a), 0, int8(b), 7))
+}
+
+// end (S80, S17) -> S80
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+// begin (S80, S26) -> S80
+
+// S26ToS80 converts a S26 to a S80.
+// S80 has fewer fractional bits and therefore a wider range, so the
+// result will be between -2 and 1.984375 (rounding to a valid S80
+// towards zero).
+func S26ToS80(b S26) S80 {
+	return S80(b) >> 6
+}
+
+// SAddS26 adds a S80 and a S26, storing the
+// result in a S80.
+func (a S80) SAddS26(b S26) S80 {
+	return a.SAdd(S26ToS80(b))
+}
+
+func (a S80) SSubS26(b S26) S80 {
+	return a.SSub(S26ToS80(b))
+}
+
+// SMulS26 performs a saturating multiply between a S80
+// and a S26, returning the result in a S80.
+func (a S80) SMulS26(b S26) S80 {
+	return S80(ssmul2(int8(a), 0, int8(b), 6))
+}
+
+// end (S80, S26) -> S80
 ////////////////////////////////////////////////////////////////////////////////

@@ -34,8 +34,14 @@ var Unsigneds = []Unsigned{{
 	Frac:    7,
 	Comment: "It is handy for gains and some other coefficients.",
 }, {
+	Frac:    6,
+	Comment: "Also occasionally useful for coefficients.",
+}, {
 	Frac:    1,
 	Comment: "Covers the usual range of MIDI notes, with half a step in between.",
+}, {
+	Frac:    0,
+	Comment: "It is just a standard uint8, but with saturating arithmetic and generated conversions",
 }}
 
 // Unsigned represent an unsigned fixed-point data type.
@@ -271,6 +277,12 @@ func Test{{.Typename}}Ops(t *testing.T) {
 var Signeds = []Signed{{
 	Frac:    7,
 	Comment: "Used primarily for audio samples.",
+}, {
+	Frac:    6,
+	Comment: "Handy for some signed coefficients.",
+}, {
+	Frac:    0,
+	Comment: "It is just a standard int8, but with saturating arithmetic and all the generated conversions.",
 }}
 
 type Signed struct {
