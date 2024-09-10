@@ -82,16 +82,25 @@ func (SVF2) String() string { return "SVF2" }
 func (s *SVF2) Tick(in, out [][]fix.S17) {
 	// TODO: use more fixes, reorganise to get bandpass and highpass
 	var (
-		r  = fix.U26FromFloat(0.15)
+		r  = fix.U26FromFloat(0.01)
 		rf = fix.U26ToFloat[float32](r)
 		// todo lookup table
 		g = fix.U08ToFloat[float32](s.cutoff)
 
-		hf  = 1.0 / (g*g + 2*rf*g + 1)
-		h00 = fix.S26FromFloat(hf)
-		h01 = fix.S26FromFloat(-g * hf)
-		h10 = fix.S26FromFloat(g * hf)
-		h11 = fix.S26FromFloat((2*rf*g + 1) * hf)
+		// g ranges from 0 to 1
+		// r ranges from 0 to 4
+		// so hf ranges from 1 to around 1/8
+		hf = 1.0 / (g*g + 2*rf*g + 1)
+		// h00 is just fh, 0 to 1 is fine
+		h00 = fix.U08FromFloat(hf)
+		// h01 is the same range as h, but negative
+		negh01 = fix.U08FromFloat(g * hf)
+		// h10 is the same range as h
+		h10 = fix.U08FromFloat(g * hf)
+		// h11 looks like it could be larger, but note that large g and
+		// r -> small h, so I don't think it can actually go above 1.
+		// Calculating it could be tricky though.
+		h11 = fix.U08FromFloat((2*rf*g + 1) * hf)
 
 		x0, x1 fix.S26
 	)
@@ -101,14 +110,15 @@ func (s *SVF2) Tick(in, out [][]fix.S17) {
 		// s0 := fix.S17ToFloat[float32](s.s[0])
 		// s1 := fix.S17ToFloat[float32](s.s[1])
 
-		hs0 := s.s[0].SMul(h00).SAdd(s.s[1].SMul(h01))
-		hs1 := s.s[0].SMul(h10).SAdd(s.s[1].SMul(h11))
+		// matrix multiply Hs
+		hs0 := s.s[0].SMulU08(h00).SAdd(s.s[1].SMulU08(negh01).SMul(-0x80))
+		hs1 := s.s[0].SMulU08(h10).SAdd(s.s[1].SMulU08(h11))
 
-		hu0 := h00.SMulS17(u)
-		hu1 := h10.SMulS17(u)
+		hu0 := u.SMulU08(h00)
+		hu1 := u.SMulU08(h10)
 
-		x0 = hu0.SMulU08(s.cutoff).SAdd(hs0)
-		x1 = hu1.SMulU08(s.cutoff).SAdd(hs1)
+		x0 = hs0.SAddS17(hu0.SMulU08(s.cutoff))
+		x1 = hs1.SAddS17(hu1.SMulU08(s.cutoff))
 
 		// r is big, so this is trouble
 		// ax0 := -2*rf*x0 - x1

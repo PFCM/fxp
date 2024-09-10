@@ -245,9 +245,9 @@ func main() {
 
 	g, ctx := errgroup.WithContext(interruptContext())
 
-	//t := delays()
-	// t := midikeys(4)
-	t := noise()
+	// t := delays()
+	t := midikeys(4)
+	// t := noise()
 
 	c := newCopier(t.Outputs())
 	ch := fxp.Serially(t, c)
