@@ -7,7 +7,7 @@ import (
 	"github.com/pfcm/fxp/fix"
 )
 
-// tickFn is a generic ticker that helps us avoid some boilerplate.
+// tickFn is a generic ticker.
 type tickFn struct {
 	name            string
 	inputs, outputs int
