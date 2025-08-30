@@ -267,7 +267,6 @@ func (l *FloatLadder) Tick(in, out [][]fix.S17) {
 	if l.i%10 == 0 {
 		l.cutoff++
 	}
-	fmt.Println(math.Atan(float64(cf))/math.Pi*44100, l.states)
 }
 
 type TwoP struct {
@@ -298,15 +297,11 @@ func (l *TwoP) Tick(in, out [][]fix.S17) {
 		l.states[0] = l.states[0].SAdd(fix.S17FromFloat(cf * (inps - f*d)))
 		l.states[1] = l.states[1].SAdd(fix.S17FromFloat(cf * d))
 		out[0][i] = l.states[1]
-		if i == 0 {
-			fmt.Println(f, l.states)
-		}
 	}
 	l.i++
 	if l.i%10 == 0 {
 		l.cutoff++
 	}
-	// fmt.Println(math.Atan(float64(cf))/math.Pi*44100, l.states)
 }
 
 func tanhxdx(x float32) float32 {

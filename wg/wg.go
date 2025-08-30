@@ -141,9 +141,7 @@ func ringCopy(dst []fix.S17, dpos int, src []fix.S17) {
 }
 
 // KS2 implements a fairly straightforward, original Karplus-Strong algorithm
-// focused on string synthesis. It accepts two inputs: the first is a trigger
-// which will restart the excitation and the second is a MIDI note that decides
-// the fundamental frequency.
+// focused on string synthesis. Like KS1 but accepts 3 inputs.
 type KS2 struct {
 	samplePeriod float32
 	// TODO position in ex

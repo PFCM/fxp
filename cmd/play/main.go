@@ -53,16 +53,16 @@ func uc(f float32) fxp.Ticker {
 // as the frequency input.
 func o(min float32, inps ...fxp.Ticker) fxp.Ticker {
 	// os := osc.Square(44100, -128, 127, min)
-	// os := osc.Sine(44100, min)
-	os := fxp.Serially(
-		fxp.Mult{3},
-		fxp.Concurrently(
-			osc.Saw(44100, min),
-			osc.Saw(44100, min+0.2),
-			osc.Saw(44100, min-0.2),
-		),
-		fxp.Sum(3),
-	)
+	os := osc.Sine(44100, min)
+	// os := fxp.Serially(
+	// 	fxp.Mult{3},
+	// 	fxp.Concurrently(
+	// 		osc.Saw(44100, min),
+	// 		osc.Saw(44100, min+0.2),
+	// 		osc.Saw(44100, min-0.2),
+	// 	),
+	// 	fxp.Sum(3),
+	// )
 	if len(inps) == 0 {
 		return os
 	}
@@ -90,9 +90,9 @@ func delays() fxp.Ticker {
 		fxp.Concurrently(
 			// generate an envelope
 			fxp.Serially(
-				// fxp.Every(1, 1000*time.Millisecond, 44100),
-				fxp.Once(1),
-				env.AttackDecay(2000*time.Millisecond, 2000*time.Millisecond, 44100),
+				fxp.Every(1, 1000*time.Millisecond, 44100),
+				//fxp.Once(1),
+				env.AttackDecay(100*time.Millisecond, 100*time.Millisecond, 44100),
 			),
 			// mix the oscillators together
 			// fxp.Sum(2),
@@ -118,7 +118,7 @@ func delays() fxp.Ticker {
 								// 	fix.S17(fix.FloatToRat44(float32(1.0/1.1))),
 								// 	-48,
 								// ),
-								osc.RatSine(44100, -66, 1.05),
+								osc.RatSine(44100, -66, 1.4),
 								// osc.Sine(44100, -60),
 								// fxp.Scale{
 								// 	Mul:   fix.FromFloat(float32(0.5)),
@@ -128,7 +128,7 @@ func delays() fxp.Ticker {
 						),
 						delay.NewDelay(1000*time.Millisecond,
 							44100, fxp.Serially(
-								fxp.Mix(s17s(0.9, 0.5)),
+								fxp.Mix(s17s(0.5, 0.9)),
 							)),
 					),
 					fxp.Noop{1},
@@ -143,7 +143,7 @@ func delays() fxp.Ticker {
 							fxp.Noop{1},
 							fxp.Serially(
 								fxp.Const{fix.S17(0)},
-								osc.RatSine(44100, -60, 1.1),
+								osc.RatSine(44100, -60, 1.2),
 								// osc.Sine(44100, -60),
 								// fxp.Scale{
 								// 	Mul:   fix.FromFloat(float32(0.5)),
@@ -153,7 +153,7 @@ func delays() fxp.Ticker {
 						),
 						delay.NewDelay(1100*time.Millisecond,
 							44100, fxp.Serially(
-								fxp.Mix(s17s(0.9, 0.5)),
+								fxp.Mix(s17s(0.5, 0.9)),
 							)),
 					),
 					fxp.Noop{1},
@@ -189,6 +189,33 @@ func midikeys(n int) fxp.Ticker {
 		fxp.Sum(n),
 		&filter.SVF2{},
 		fxp.Mix2([]fix.S26{fix.S26FromFloat(2.0)}),
+	)
+}
+
+func testOscs(n int) fxp.Ticker {
+	voice := func() fxp.Ticker {
+		return fxp.Serially(
+			fxp.Concurrently(
+				o(0),
+				env.NewADSR(
+					200*time.Millisecond,
+					200*time.Millisecond,
+					fix.S17FromFloat(float32(0.5)),
+					2000*time.Millisecond,
+					44100),
+			),
+			fxp.Amp{},
+		)
+	}
+
+	voices := make([]fxp.Ticker, n)
+	for i := range voices {
+		voices[i] = voice()
+	}
+	return fxp.Serially(
+		hid.NewMidiNotes(n),
+		fxp.Concurrently(voices...),
+		fxp.Sum(n),
 	)
 }
 
@@ -246,8 +273,9 @@ func main() {
 	g, ctx := errgroup.WithContext(interruptContext())
 
 	// t := delays()
-	t := midikeys(4)
+	// t := midikeys(4)
 	// t := noise()
+	t := testOscs(4)
 
 	c := newCopier(t.Outputs())
 	ch := fxp.Serially(t, c)
